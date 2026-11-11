@@ -205,7 +205,10 @@ async function loadStudentPortal(student,session){
  renderStudentLiveClasses(liveResult.data||[]);
 }
 async function syncCloudData(){
- const studentRows=db.students.map(s=>({student_code:s.id,name:s.name,phone:s.phone,email:s.email||null,guardian:s.guardian||null,address:s.address||null,qualification:s.qualification||null,course_name:s.course,total_fee:s.total,admission_date:s.date||new Date().toISOString().slice(0,10)}));
+ const {data:courseRows,error:courseError}=await supabaseClient.from('courses').select('id,title');
+ if(courseError)throw courseError;
+ const courseIdByTitle=Object.fromEntries((courseRows||[]).map(c=>[String(c.title||'').trim().toLowerCase(),c.id]));
+ const studentRows=db.students.map(s=>({student_code:s.id,name:s.name,phone:s.phone,email:s.email||null,guardian:s.guardian||null,address:s.address||null,qualification:s.qualification||null,course_name:s.course,course_id:courseIdByTitle[String(s.course||'').trim().toLowerCase()]||null,total_fee:s.total,admission_date:s.date||new Date().toISOString().slice(0,10)}));
  if(studentRows.length){const {error}=await supabaseClient.from('students').upsert(studentRows,{onConflict:'student_code'});if(error)throw error}
  const {data:cloudStudents,error:studentError}=await supabaseClient.from('students').select('id,student_code');if(studentError)throw studentError;
  const idMap=Object.fromEntries(cloudStudents.map(s=>[s.student_code,s.id]));
