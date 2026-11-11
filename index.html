@@ -13,6 +13,48 @@
 .authbox .field{margin:12px 0}.authbox .btn{width:100%;margin-top:8px}
 .authmsg{font-size:12px;color:#9a6b0b;margin-top:12px;line-height:1.5}
 #appShell{display:none}
+</style>
+<style>
+/* MUKTI Academy UI refresh */
+:root{--navy:#0b1730;--navy2:#15294b;--gold:#f2c45b;--bg:#f3f6fc;--ink:#17233b;--muted:#718096;--line:#e6ebf3;--green:#14845d;--red:#c44d59}
+body{background:radial-gradient(circle at 85% 0%,#eaf0ff 0,transparent 30%),var(--bg);letter-spacing:.05px}
+.sidebar{background:linear-gradient(180deg,#0b1730,#142b50);box-shadow:8px 0 28px #12234412}
+.logo{box-shadow:0 7px 20px #f2c45b30}
+.nav button{transition:background .18s,transform .18s}
+.nav button:hover{transform:translateX(2px)}
+.nav button.active{background:linear-gradient(90deg,#ffffff24,#ffffff0b);box-shadow:inset 3px 0 var(--gold)}
+.topbar{backdrop-filter:blur(12px);box-shadow:0 4px 20px #182b4b08}
+.content{max-width:1500px;padding:30px clamp(16px,3vw,42px)}
+.heading{align-items:center}
+.heading h1{letter-spacing:-.7px;font-size:clamp(22px,2.2vw,30px)}
+.card,.panel,.feature{border-radius:17px;box-shadow:0 8px 28px #1c2d4b08;transition:box-shadow .2s,transform .2s}
+.card:hover,.feature:hover{box-shadow:0 12px 32px #1c2d4b12;transform:translateY(-1px)}
+.stat h2{letter-spacing:-.7px}
+.btn{transition:transform .15s,box-shadow .15s,filter .15s}
+.btn:hover{filter:brightness(1.05);transform:translateY(-1px);box-shadow:0 6px 15px #14213d20}
+.btn:focus-visible,.nav button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #e7b84b66;outline-offset:2px}
+.field input,.field select,.field textarea{min-height:42px;border-radius:10px}
+.field input:focus,.field select:focus{box-shadow:0 0 0 3px #e7b84b20}
+th{position:sticky;top:0;z-index:1}
+table{font-size:12.5px}
+td,th{padding:13px 11px}
+.hero{background:radial-gradient(circle at 80% 30%,#38527e 0,#1b3155 30%,#0d1932 75%);box-shadow:0 16px 35px #14213d20}
+.authbox{border-radius:22px;box-shadow:0 22px 70px #17274620;padding:clamp(22px,5vw,34px)}
+.authbox h2{font-size:25px;letter-spacing:-.6px}
+#authGate{background:radial-gradient(circle at 10% 10%,#fff3d3 0,transparent 30%),radial-gradient(circle at 90% 90%,#dfe9ff 0,transparent 35%),#f4f6fb}
+#profileQuickBtn{box-shadow:0 0 0 3px #f2c45b33}
+@media(max-width:640px){
+ .sidebar{box-shadow:0 5px 20px #14213d22}
+ .nav{scrollbar-width:thin;padding-bottom:3px}
+ .nav button.active{box-shadow:inset 0 -3px var(--gold)}
+ .topbar{position:sticky;top:0}
+ .content{padding:15px 12px 28px}
+ .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stat h2{font-size:19px}
+ .panel{padding:14px}
+ .heading{align-items:flex-start}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 </style></head>
 <body>
 <div id="authGate"><div class="authbox"><div class="eyebrow">MUKTI SHARE MARKET ACADEMY</div><h2>Admin / Student Login</h2><p>আপনার ইমেইল দিয়ে Login করুন। নতুন Admin হলে Sign Up করে Email Verification সম্পন্ন করুন।</p>
@@ -49,7 +91,7 @@ function authNote(m){authMessage.textContent=m}
 async function enterApp(session){
  currentSession=session;
  const {data:profile,error}=await supabaseClient.from('profiles').select('role,full_name').eq('id',session.user.id).single();
- if(error){authNote('Profile load failed: '+error.message);return}
+ if(error){authNote('Profile load failed: '+error.message);throw error}
  if(profile.role!=='admin'){authNote('এই Account-এ Admin access নেই। Student portal access পরবর্তী ধাপে সক্রিয় হবে।');await supabaseClient.auth.signOut();return}
  document.getElementById('authGate').style.display='none';document.getElementById('appShell').style.display='block';
  document.getElementById('topTitle').textContent='Overview';
@@ -75,8 +117,14 @@ document.getElementById('signupBtn').addEventListener('click',async()=>{
  if(error){authNote(error.message);return}
  authNote('Account তৈরি হয়েছে। আপনার email inbox-এ Supabase verification link পাঠানো হয়েছে। Verify করে ফিরে এসে Login করুন।');
 });
-supabaseClient.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_IN'&&session) setTimeout(()=>enterApp(session),0)});
-const KEY='mukti_academy_demo_v1';let db=JSON.parse(localStorage.getItem(KEY)||'{"students":[],"payments":[],"attendance":[],"materials":[]}');function save(){localStorage.setItem(KEY,JSON.stringify(db));refresh();if(currentSession) syncCloudData().catch(e=>toast('Cloud save error: '+e.message))}
+let enteringApp=false;
+supabaseClient.auth.onAuthStateChange((event,session)=>{
+ if(event==='SIGNED_IN'&&session&&!enteringApp){enteringApp=true;setTimeout(()=>enterApp(session).catch(e=>authNote('App load failed: '+e.message)).finally(()=>{enteringApp=false}),0)}
+ if(event==='SIGNED_OUT'){currentSession=null}
+});
+(async()=>{const {data,error}=await supabaseClient.auth.getSession();if(error){authNote('Session check failed: '+error.message);return}if(data.session&&!enteringApp){enteringApp=true;try{await enterApp(data.session)}catch(e){authNote('App load failed: '+e.message)}finally{enteringApp=false}}})();
+const KEY='mukti_academy_demo_v1';let db=JSON.parse(localStorage.getItem(KEY)||'{"students":[],"payments":[],"attendance":[],"materials":[]}');let syncQueue=Promise.resolve();
+function save(){localStorage.setItem(KEY,JSON.stringify(db));refresh();if(currentSession){syncQueue=syncQueue.then(()=>syncCloudData()).catch(e=>{toast('Cloud sync failed: '+e.message);throw e});syncQueue.catch(()=>{});}}
 async function loadCloudData(){
  const [sr,pr,ar,mr]=await Promise.all([
   supabaseClient.from('students').select('*').order('created_at'),
