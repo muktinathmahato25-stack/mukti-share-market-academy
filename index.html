@@ -150,7 +150,7 @@ document.getElementById('signupBtn').addEventListener('click',async()=>{
  if(!isAdminEmail&&!studentCode){authNote('Student Account-এর জন্য Academy থেকে পাওয়া Student ID লিখুন।');return}
  if(isAdminEmail&&studentCode){authNote('Admin Account-এর জন্য Student ID ফাঁকা রাখুন।');return}
  authNote('Account তৈরি হচ্ছে…');
- const {data,error}=await supabaseClient.auth.signUp({email,password,options:{data:{full_name:name},emailRedirectTo:location.origin}});
+ const {data,error}=await supabaseClient.auth.signUp({email,password,options:{data:{full_name:name},emailRedirectTo:'https://mukti-share-market-academy.vercel.app'}});
  if(error){authNote(error.message);return}
  if(data.session){authNote('Account তৈরি হয়েছে। Email verification সম্পন্ন করে Student ID দিয়ে Login করুন।');await supabaseClient.auth.signOut();return}
  authNote('Registration request গ্রহণ করা হয়েছে। Email inbox-এর verification link খুলুন। Verify করার পর এই পেজে ফিরে Student ID ও Password দিয়ে Login করুন।');
