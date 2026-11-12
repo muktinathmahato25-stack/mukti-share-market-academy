@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUKTI Academy | Online Exam</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fc;color:#17233b;font-family:system-ui, sans-serif}.wrap{max-width:900px;margin:28px auto;padding:16px}.box{background:white;border:1px solid #e5eaf2;border-radius:16px;padding:22px;margin:14px 0;box-shadow:0 8px 25px #1727460a}h1{margin:5px 0 8px;color:#101a33}.muted{color:#718096;font-size:13px}.field{display:block;margin:12px 0}.field input{width:100%;padding:12px;border:1px solid #dce3ef;border-radius:9px}.btn{border:0;border-radius:9px;padding:11px 16px;background:#101a33;color:white;font-weight:700;cursor:pointer}.btn.gold{background:#f2c45b;color:#17233b}.btn:disabled{opacity:.5;cursor:not-allowed}.q{padding:16px 0;border-bottom:1px solid #e8edf4}.q:last-child{border:0}.opt{display:block;padding:8px 10px;margin:5px 0;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer}.opt input{margin-right:8px}.result{font-size:30px;font-weight:800;color:#14845d}.err{color:#b45309;font-size:13px;margin-top:10px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:10px;border-bottom:1px solid #e5eaf2}
+</style></head><body><main class="wrap">
+<div class="box"><div class="muted">MUKTI SHARE MARKET ACADEMY</div><h1>Online Examination Portal</h1><div class="muted">Chapter 1 · Introduction to Share Market · 25 MCQ · 30 Minutes</div></div>
+<section class="box" id="loginBox"><h2>Student / Admin Login</h2><label class="field">Email<input id="email" type="email" autocomplete="username"></label><label class="field">Password<input id="password" type="password" autocomplete="current-password"></label><button class="btn" id="login">Login</button><p class="err" id="message">আপনার MUKTI Academy account দিয়ে Login করুন। Student account-এর Student ID আগে link করা থাকতে হবে।</p></section>
+<section class="box" id="portal" hidden><div class="top"><div><b id="welcome">Welcome</b><div class="muted" id="role"></div></div><button class="btn" id="logout">Logout</button></div><div id="studentArea" hidden><h2>Available Exam</h2><div id="examList">Loading…</div><div id="examArea"></div></div><div id="adminArea" hidden><h2>Student Results</h2><div id="results">Loading…</div></div></section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
+const sb=window.supabase.createClient('https://jwsshpqrlobnmswzicsm.supabase.co','sb_publishable_Wqd1vsqnsZEa9Iz6lgq90A_jaACwmgK');
+let user=null,profile=null,exam=null,student=null;
+const $=id=>document.getElementById(id);
+function msg(t){$('message').textContent=t}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function start(session){
+ user=session.user;
+ const p=await sb.from('profiles').select('role,full_name').eq('id',user.id).single();
+ if(p.error)throw p.error;profile=p.data;
+ $('loginBox').hidden=true;$('portal').hidden=false;$('welcome').textContent=profile.full_name||user.email;$('role').textContent=profile.role==='admin'?'Admin Dashboard':'Student Exam Portal';
+ if(profile.role==='admin'){$('adminArea').hidden=false;await loadResults()}
+ else if(profile.role==='student'){$('studentArea').hidden=false;const s=await sb.from('students').select('id,student_code,name').eq('auth_user_id',user.id).maybeSingle();if(s.error)throw s.error;student=s.data;if(!student)throw new Error('Student ID আপনার Login account-এর সঙ্গে যুক্ত নেই। Academy Admin-এর সঙ্গে যোগাযোগ করুন।');await loadExams()}
+ else throw new Error('এই account-এর অনুমতি নেই।');
+}
+async function loadExams(){
+ const r=await sb.from('exams').select('id,title,description,questions,duration_minutes,total_marks,published').eq('published',true).order('created_at',{ascending:false});
+ if(r.error)throw r.error;
+ if(!r.data.length){$('examList').textContent='এখন কোনো পরীক্ষা প্রকাশিত নেই।';return}
+ const a=await sb.from('exam_attempts').select('exam_id,score,total_marks,submitted_at').eq('user_id',user.id);
+ if(a.error)throw a.error;
+ $('examList').innerHTML=r.data.map(e=>{const done=a.data.find(x=>x.exam_id===e.id);return '<div class="box"><b>'+esc(e.title)+'</b><p class="muted">'+esc(e.description||'')+' · '+e.questions.length+' Questions · '+e.duration_minutes+' min</p>'+(done?'<div class="result">'+done.score+'/'+done.total_marks+'</div><small>Already submitted</small>':'<button class="btn gold" onclick="openExam(\''+e.id+'\')">Start Exam</button>')+'</div>'}).join('');
+ window.examRows=r.data;
+}
+window.openExam=id=>{exam=window.examRows.find(x=>x.id===id);$('examList').hidden=true;const target=$('examArea');target.innerHTML='<h2>'+esc(exam.title)+'</h2><p class="muted">সময়: '+exam.duration_minutes+' মিনিট · প্রতিটি প্রশ্ন ১ নম্বর</p><form id="examForm">'+exam.questions.map((q,i)=>'<div class="q"><b>প্রশ্ন '+(i+1)+'. '+esc(q.q)+'</b>'+q.options.map((o,j)=>'<label class="opt"><input required type="radio" name="q'+i+'" value="'+j+'">'+String.fromCharCode(65+j)+'. '+esc(o)+'</label>').join('')+'</div>').join('')+'<p><button class="btn gold" type="submit">Submit Exam</button></p></form>';
+ $('examForm').addEventListener('submit',async e=>{e.preventDefault();if(!confirm('আপনি কি পরীক্ষা জমা দিতে চান? জমা দেওয়ার পর পরিবর্তন করা যাবে না।'))return;const answers={};exam.questions.forEach((q,i)=>{const v=new FormData(e.target).get('q'+i);if(v!==null)answers[i]=Number(v)});const b=e.target.querySelector('button');b.disabled=true;b.textContent='Submitting…';const r=await sb.rpc('submit_exam',{p_exam_id:exam.id,p_answers:answers});if(r.error){b.disabled=false;b.textContent='Submit Exam';alert(r.error.message);return}const x=r.data[0];target.innerHTML='<div class="box"><h2>পরীক্ষা সম্পন্ন হয়েছে!</h2><div class="result">'+x.earned+' / '+x.possible+'</div><p>আপনার Result সংরক্ষিত হয়েছে।</p></div>';});
+};
+async function loadResults(){const r=await sb.from('exam_attempts').select('student_code,student_name,score,total_marks,submitted_at,exams(title)').order('submitted_at',{ascending:false});if(r.error)throw r.error;$('results').innerHTML=r.data.length?'<table><thead><tr><th>Student ID</th><th>Name</th><th>Exam</th><th>Score</th><th>Submitted</th></tr></thead><tbody>'+r.data.map(x=>'<tr><td>'+esc(x.student_code)+'</td><td>'+esc(x.student_name)+'</td><td>'+esc(x.exams?.title)+'</td><td><b>'+x.score+'/'+x.total_marks+'</b></td><td>'+new Date(x.submitted_at).toLocaleString('en-IN')+'</td></tr>').join('')+'</tbody></table>':'এখনও কোনো Result জমা পড়েনি।'}
+$('login').onclick=async()=>{msg('Login হচ্ছে…');const r=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(r.error){msg(r.error.message);return}try{await start(r.data.session)}catch(e){msg(e.message);await sb.auth.signOut();$('loginBox').hidden=false;$('portal').hidden=true}};
+$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
+sb.auth.getSession().then(async({data})=>{if(data.session)try{await start(data.session)}catch(e){msg(e.message);await sb.auth.signOut()}});
+</script></body></html>
